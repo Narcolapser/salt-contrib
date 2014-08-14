@@ -10,12 +10,60 @@ def __virtual__():
     return 'chocolatey' if 'chocolatey.install' in __salt__ else False
     
 
-def chocolatey(name, present=True):
+def _find_chocolatey():
+    '''
+    Returns the full path to chocolatey.bat on the host. Direct copy from the chocolatey module.
+    '''
+    choc_defaults = ['C:\\Chocolatey\\bin\\chocolatey.bat',
+                    'C:\\ProgramData\\Chocolatey\\bin\\chocolatey.exe', ]
+
+    choc_path = __salt__['cmd.which']('chocolatey.exe')
+    if not choc_path:
+        for choc_dir in choc_defaults:
+            if __salt__['cmd.has_exec'](choc_dir):
+                choc_path = choc_dir
+
+    return choc_path
+
+def chocolatey(name, force=False):
     '''
     Bootstrap wrapper. Basically include this in your state and your minion will make sure that
     chocolatey is installed.
     '''
-    pass
+    choco_path = _find_chocolatey()
+
+    if choco_path:
+        ret = {'name': name,
+            'result': True,
+            'changes': {},
+            'comment': 'Chocolatey already installed. found at: {0}'.format(choco_path)}
+        return ret
+
+    ret = {'name': name,
+        'result': False,
+        'changes': {},
+        'comment': ''}
+
+    try:
+        result = __salt__['chocolatey.bootstrap'](force)
+
+    except CommandExecutionError as CEE:
+        ret['comment'] = 'Error while executing boot strap process: {0}'.format(str(CEE))
+        return ret
+
+    except ComandNotFoundError as CNFE:
+        ret['comment'] = 'failed to find Power shell, or power shell was not installed'
+        return ret
+
+    if result != 0:
+        ret['comment'] = 
+            'honestly not entirely sure what went wrong. But you might find something here:\n{0}'.format(result['stderr'])
+        return ret
+    
+    ret['comment'] = result['stdout']
+    ret['result'] = True
+    ret['changes'] = {'chocolatey':'bootstrapped'}
+    return ret
 
 def install(name, version=None, source=None, force=False):
     '''
